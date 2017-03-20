@@ -1,5 +1,5 @@
 
-def pipeStartQuick(newFileName):
+def pipeStartQuick(newFileName,calibrateOnly=False):
     import subprocess
     from shutil import copyfile
     import astropy.units as u
@@ -10,7 +10,7 @@ def pipeStartQuick(newFileName):
 
     ###1 importing both images
     refFits = fits.open('/home/jamiedegois/Desktop/pipeStartQuick/refQuick.fits')
-    newFits = fits.open('/home/jamiedegois/Desktop/pipeStartQuick/Input/'+ newFileName)
+    newFits = fits.open(newFileName)
 
 
     ###2 Croping newFits
@@ -128,7 +128,10 @@ def pipeStartQuick(newFileName):
 
 
     fits.writeto("/home/jamiedegois/Desktop/pipeStartQuick/sextractorStart/test.fits",data, header, clobber=True)
-    subprocess_cmd('cd /home/jamiedegois/Desktop/pipeStartQuick/sextractorStart; sextractor test.fits -c default2.sex')
+    if ((calibrateOnly)):
+        pass
+    else:
+        subprocess_cmd('cd /home/jamiedegois/Desktop/pipeStartQuick/sextractorStart; sextractor test.fits -c default2.sex')
 
     copyfile('/home/jamiedegois/Desktop/pipeStartQuick/sextractorStart/test.fits','/home/jamiedegois/Desktop/pipeStartQuick/Output/QUICK' + newFileName)
     copyfile('/home/jamiedegois/Desktop/pipeStartQuick/sextractorStart/better_astr_referror2d_1.svg','/home/jamiedegois/Desktop/pipeStartQuick/Output/CHECKPLOT-' + newFileName.replace(".fits",".svg"))
