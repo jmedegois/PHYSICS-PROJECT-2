@@ -10,15 +10,15 @@ def pipeStartQuick(newFileName):
 
     ###1 importing both images
     refFits = fits.open('/home/jamiedegois/Desktop/pipeStartQuick/refQuick.fits')
-    newFits = fits.open('/home/jamiedegois/Desktop/pipeStartQuick/'+ newFileName)
+    newFits = fits.open('/home/jamiedegois/Desktop/pipeStartQuick/Input/'+ newFileName)
 
 
     ###2 Croping newFits
     newFitsMid = fits.PrimaryHDU()
     newFitsMid.data = newFits[0].data[1:4927,1227:6153]
     newFitsMid.header = newFits[0].header
-    newFitsMid.writeto('/home/jamiedegois/Desktop/pipeStartQuick/QUICK' + newFileName, clobber=True)
-    newFits = fits.open('/home/jamiedegois/Desktop/pipeStartQuick/QUICK' + newFileName)##may be redundant
+    newFitsMid.writeto('/home/jamiedegois/Desktop/pipeStartQuick/Output/QUICK' + newFileName, clobber=True)
+    newFits = fits.open('/home/jamiedegois/Desktop/pipeStartQuick/Output/QUICK' + newFileName)##may be redundant
 
 
     ###3 calculate new center coordinates
@@ -76,12 +76,12 @@ def pipeStartQuick(newFileName):
 
 
 
-    newFits.writeto('/home/jamiedegois/Desktop/pipeStartQuick/QUICK' + newFileName, clobber=True)
+    newFits.writeto('/home/jamiedegois/Desktop/pipeStartQuick/Output/QUICK' + newFileName, clobber=True)
     print("###############   all done :)   #############")
 
 ###########################################do SEXTRACTOR AND SCAMP##############################
 
-    copyfile('/home/jamiedegois/Desktop/pipeStartQuick/QUICK' + newFileName,
+    copyfile('/home/jamiedegois/Desktop/pipeStartQuick/Output/QUICK' + newFileName,
              '/home/jamiedegois/Desktop/pipeStartQuick/sextractorStart/test.fits')
 
     def subprocess_cmd(command):
@@ -130,11 +130,11 @@ def pipeStartQuick(newFileName):
     fits.writeto("/home/jamiedegois/Desktop/pipeStartQuick/sextractorStart/test.fits",data, header, clobber=True)
     subprocess_cmd('cd /home/jamiedegois/Desktop/pipeStartQuick/sextractorStart; sextractor test.fits -c default2.sex')
 
-    copyfile('/home/jamiedegois/Desktop/pipeStartQuick/sextractorStart/test.fits','/home/jamiedegois/Desktop/pipeStartQuick/QUICK' + newFileName)
-    copyfile('/home/jamiedegois/Desktop/pipeStartQuick/sextractorStart/better_astr_referror2d_1.svg','/home/jamiedegois/Desktop/pipeStartQuick/CHECKPLOT-' + newFileName.replace(".fits",".svg"))
-    copyfile('/home/jamiedegois/Desktop/pipeStartQuick/sextractorStart/full_1.cat','/home/jamiedegois/Desktop/pipeStartQuick/FULL-' + newFileName.replace(".fits",".catalogue"))
-    copyfile('/home/jamiedegois/Desktop/pipeStartQuick/sextractorStart/merged_1.cat','/home/jamiedegois/Desktop/pipeStartQuick/MERGED-' + newFileName.replace(".fits",".catalogue"))
-    copyfile('/home/jamiedegois/Desktop/pipeStartQuick/sextractorStart/test.cat','/home/jamiedegois/Desktop/pipeStartQuick/sextractor-' + newFileName.replace(".fits",".cat"))
+    copyfile('/home/jamiedegois/Desktop/pipeStartQuick/sextractorStart/test.fits','/home/jamiedegois/Desktop/pipeStartQuick/Output/QUICK' + newFileName)
+    copyfile('/home/jamiedegois/Desktop/pipeStartQuick/sextractorStart/better_astr_referror2d_1.svg','/home/jamiedegois/Desktop/pipeStartQuick/Output/CHECKPLOT-' + newFileName.replace(".fits",".svg"))
+    copyfile('/home/jamiedegois/Desktop/pipeStartQuick/sextractorStart/full_1.cat','/home/jamiedegois/Desktop/pipeStartQuick/Output/FULL-' + newFileName.replace(".fits",".catalogue"))
+    copyfile('/home/jamiedegois/Desktop/pipeStartQuick/sextractorStart/merged_1.cat','/home/jamiedegois/Desktop/pipeStartQuick/Output/MERGED-' + newFileName.replace(".fits",".catalogue"))
+    copyfile('/home/jamiedegois/Desktop/pipeStartQuick/sextractorStart/test.cat','/home/jamiedegois/Desktop/pipeStartQuick/Output/sextractor-' + newFileName.replace(".fits",".cat"))
 
 
 
