@@ -7,6 +7,7 @@ from astropy.io import fits
 ####note n1= y map
 ####note n2= diag map
 ####note n3= sky area map
+####note n4= flux multiplier map
 def skyDistance(inRA1,inDec1,inRA2,inDec2):#input in degrees, output in arcseconds...can take np arrays :)
     inRA1=np.multiply(inRA1,(math.pi/180))
     inRA2 = np.multiply(inRA2, (math.pi / 180))
@@ -68,3 +69,8 @@ hdulist.writeto('/home/jamiedegois/Desktop/n2.fits',overwrite=True)
 hdu=fits.PrimaryHDU(np.multiply(mapX,mapY))
 hdulist = fits.HDUList([hdu])
 hdulist.writeto('/home/jamiedegois/Desktop/n3.fits',overwrite=True)
+
+################## flux multiplier map  see log book page 48 for formula y= -1.5*10^-4(sky area) +1.713025
+hdu=fits.PrimaryHDU(np.add(np.multiply(np.multiply(mapX,mapY),-0.00015),+1.713025 ))
+hdulist = fits.HDUList([hdu])
+hdulist.writeto('/home/jamiedegois/Desktop/n4.fits',overwrite=True)
