@@ -3,6 +3,10 @@ import numpy as np
 import math
 from astropy.io import fits
 
+####note n= x map
+####note n1= y map
+####note n2= diag map
+####note n3= sky area map
 def skyDistance(inRA1,inDec1,inRA2,inDec2):#input in degrees, output in arcseconds...can take np arrays :)
     inRA1=np.multiply(inRA1,(math.pi/180))
     inRA2 = np.multiply(inRA2, (math.pi / 180))
@@ -34,7 +38,7 @@ hdulist.writeto('/home/jamiedegois/Desktop/n.fits',overwrite=True)
 
 
 
-###########inverse metric
+###########inverse metric ie Y MAP
 w = WCS('/media/jamiedegois/JaimedeGois2TBPortable/swarpOutput/QUICK01_2016-01-10_151153_DSC_0530-G.fitsco-add.fits')
 x=6018
 y=4863
@@ -55,7 +59,12 @@ print DEC
 hdu=fits.PrimaryHDU(mapY)
 hdulist = fits.HDUList([hdu])
 hdulist.writeto('/home/jamiedegois/Desktop/n1.fits',overwrite=True)
-
+##################diagonal map
 hdu=fits.PrimaryHDU(np.divide(np.hypot(mapX,mapY),1.414213562))
 hdulist = fits.HDUList([hdu])
 hdulist.writeto('/home/jamiedegois/Desktop/n2.fits',overwrite=True)
+
+################## sky area map (in square arc seconds)
+hdu=fits.PrimaryHDU(np.multiply(mapX,mapY))
+hdulist = fits.HDUList([hdu])
+hdulist.writeto('/home/jamiedegois/Desktop/n3.fits',overwrite=True)
