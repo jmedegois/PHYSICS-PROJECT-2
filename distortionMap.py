@@ -74,3 +74,8 @@ hdulist.writeto('/home/jamiedegois/Desktop/n3.fits',overwrite=True)
 hdu=fits.PrimaryHDU(np.add(np.multiply(np.multiply(mapX,mapY),-0.00015),+1.713025 ))
 hdulist = fits.HDUList([hdu])
 hdulist.writeto('/home/jamiedegois/Desktop/n4.fits',overwrite=True)
+
+################## flux multiplier map2  see log book page 54 for formula y= -.27*10^-4(sky area) +1.1283
+hdu=fits.PrimaryHDU(np.add(np.multiply(np.multiply(mapX,mapY),-0.000027),+1.1283 ))
+hdulist = fits.HDUList([hdu])
+hdulist.writeto('/home/jamiedegois/Desktop/n5.fits',overwrite=True)
