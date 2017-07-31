@@ -1,24 +1,32 @@
-
-def pipeStartQuick(newFileName,calibrateOnly=False):
+def pipeStartQuick(newFileName,calibrateOnly=False,recalcCentreOnly=False,outPutLocation='/home/jamiedegois/Desktop/pipeStartQuick/Output/'):
     import subprocess
+    import Stilts
     from shutil import copyfile
     import astropy.units as u
     from astropy.io import fits
     from astropy.coordinates import SkyCoord, EarthLocation
     from astropy.time import Time
     import re
+    import numpy as np
+
+
+    def subprocess_cmd(command):
+        process = subprocess.Popen(command,stdout=subprocess.PIPE, shell=True)
+        proc_stdout = process.communicate()[0].strip()
+        print proc_stdout
 
     ###1 importing both images
     refFits = fits.open('/home/jamiedegois/Desktop/pipeStartQuick/refQuick.fits')
     newFits = fits.open(newFileName)
 
+    newFileName=newFileName.split("/")[-1]
 
     ###2 Croping newFits
     newFitsMid = fits.PrimaryHDU()
     newFitsMid.data = newFits[0].data[1:4927,1227:6153]
     newFitsMid.header = newFits[0].header
-    newFitsMid.writeto('/home/jamiedegois/Desktop/pipeStartQuick/Output/QUICK' + newFileName, clobber=True)
-    newFits = fits.open('/home/jamiedegois/Desktop/pipeStartQuick/Output/QUICK' + newFileName)##may be redundant
+    newFitsMid.writeto('/home/jamiedegois/Desktop/pipeStartQuick/sextractorStart/test.fits', clobber=True)
+    newFits = fits.open('/home/jamiedegois/Desktop/pipeStartQuick/sextractorStart/test.fits')##may be redundant
 
 
     ###3 calculate new center coordinates
@@ -72,76 +80,212 @@ def pipeStartQuick(newFileName,calibrateOnly=False):
     newFits[0].header['CRVAL1'] = newCenterCoord1
     newFits[0].header['CRVAL2'] = newCenterCoord2
 
-
-
-
-
-    newFits.writeto('/home/jamiedegois/Desktop/pipeStartQuick/Output/QUICK' + newFileName, clobber=True)
+    newFits.writeto('/home/jamiedegois/Desktop/pipeStartQuick/sextractorStart/test.fits', clobber=True)
     print("###############   all done :)   #############")
 
-###########################################do SEXTRACTOR AND SCAMP##############################
+    if (recalcCentreOnly == False):
+    ###########################################do SEXTRACTOR AND SCAMP (PLUS CHECK IF >100 sources) ##############################
 
-    copyfile('/home/jamiedegois/Desktop/pipeStartQuick/Output/QUICK' + newFileName,
-             '/home/jamiedegois/Desktop/pipeStartQuick/sextractorStart/test.fits')
 
+
+
+
+        subprocess_cmd('cd /home/jamiedegois/Desktop/pipeStartQuick/sextractorStart; sextractor test.fits')
+        cat = fits.open('/home/jamiedegois/Desktop/pipeStartQuick/sextractorStart/test.cat')
+
+
+        if(len(cat[2].data)>100): #if more than 100 sources detected, proceed with calibration
+            subprocess_cmd('cd /home/jamiedegois/Desktop/pipeStartQuick/sextractorStart; scamp test.cat -c scamp3.conf')
+
+
+        ############################################# Write refined Astrometric solution to header and run SExtractor again ##########################
+
+
+            f = open('/home/jamiedegois/Desktop/pipeStartQuick/sextractorStart/test.head')
+            data= f.read()
+
+            data= data.replace(" / ","#")
+            data= data.replace(" ","")
+            data= data.split("\n",3)[3]
+
+            data= re.split('=|#|\n',data)
+
+            keys = data[0:287:3]
+
+
+            values = data[1:287:3]
+
+            from astropy.io import fits
+            data, header = fits.getdata("/home/jamiedegois/Desktop/pipeStartQuick/sextractorStart/test.fits", header=True)
+
+            if len(keys)>95:
+                for ii in range (96):
+                    try:
+                        header[keys[ii]] = int(values[ii])
+                    except ValueError:
+                        try:
+                            header[keys[ii]] = float(values[ii])
+                        except ValueError:
+                            pass #it is a string and can be done manually
+            else:
+                file = open('/home/jamiedegois/Desktop/pipeStartQuick/ERRORLOG.txt', 'a')
+                file.write('Error 01:Test.head too short, output file may not have the correct photometric calibration solution\n')
+                file.write('    File affected:'+newFileName+'\n')
+                file.close()
+
+            header['CTYPE1'] = 'RA---TPV'
+            header['CTYPE2'] = 'DEC--TPV'
+            header['CUNIT1'] = 'deg'
+            header['CUNIT2'] = 'deg'
+            header['RADESYS'] = 'ICRS'
+
+
+            fits.writeto("/home/jamiedegois/Desktop/pipeStartQuick/sextractorStart/test.fits",data, header, clobber=True)
+            if ((calibrateOnly)):
+                pass
+            else:
+                subprocess_cmd('cd /home/jamiedegois/Desktop/pipeStartQuick/sextractorStart; sextractor test.fits -c default2.sex')
+
+            ########CREATE CSV#####
+            subprocess_cmd(
+                'cd /home/jamiedegois/Desktop/pipeStartQuick/sextractorStart; sextractor test.fits -c default_12_SIGMA.sex')
+            Stilts.stitlsANDJoinCSV('600', 'ALPHAWIN_J2000', 'DELTAWIN_J2000', 'X_WORLD', 'Y_WORLD',
+                                    "/home/jamiedegois/Desktop/pipeStartQuick/sextractorStart/test.cat#2",
+                                    "/home/jamiedegois/Desktop/pipeStartQuick/sextractorStart/reCalcCentre.fits",
+                                    '/home/jamiedegois/Desktop/pipeStartQuick/sextractorStart/reCenterOutputCat.csv')
+            #########################
+
+            copyfile('/home/jamiedegois/Desktop/pipeStartQuick/sextractorStart/test.fits',outPutLocation+'QUICK' + newFileName)
+            copyfile('/home/jamiedegois/Desktop/pipeStartQuick/sextractorStart/better_astr_referror2d_1.svg',outPutLocation+'CHECKPLOT-' + newFileName.replace(".fits",".svg"))
+            copyfile('/home/jamiedegois/Desktop/pipeStartQuick/sextractorStart/full_1.cat',outPutLocation+'FULL-' + newFileName.replace(".fits",".catalogue"))
+            copyfile('/home/jamiedegois/Desktop/pipeStartQuick/sextractorStart/merged_1.cat',outPutLocation+'MERGED-' + newFileName.replace(".fits",".catalogue"))
+            copyfile('/home/jamiedegois/Desktop/pipeStartQuick/sextractorStart/test.cat',outPutLocation+'sextractor-' + newFileName.replace(".fits",".cat"))
+            copyfile('/home/jamiedegois/Desktop/pipeStartQuick/sextractorStart/reCenterOutputCat.csv',
+                     outPutLocation + 'RECENTRE-' + newFileName.replace(".fits", ".csv"))
+
+
+        else: #(less than 100 sources)
+            file = open('/home/jamiedegois/Desktop/pipeStartQuick/ERRORLOG.txt', 'a')
+            file.write(
+                'Error 02:Less Than 100 Sources detected- only ref image calibration applied to image\n')
+            file.write('    File affected:' + newFileName + '\n')
+            file.close()
+
+            copyfile('/home/jamiedegois/Desktop/pipeStartQuick/sextractorStart/test.fits',outPutLocation + 'QUICK' + newFileName)
+            #copyfile('/home/jamiedegois/Desktop/pipeStartQuick/sextractorStart/better_astr_referror2d_1.svg',outPutLocation + 'CHECKPLOT-' + newFileName.replace(".fits", ".svg"))
+            #copyfile('/home/jamiedegois/Desktop/pipeStartQuick/sextractorStart/full_1.cat',outPutLocation + 'FULL-' + newFileName.replace(".fits", ".catalogue"))
+            #copyfile('/home/jamiedegois/Desktop/pipeStartQuick/sextractorStart/merged_1.cat',outPutLocation + 'MERGED-' + newFileName.replace(".fits", ".catalogue"))
+            copyfile('/home/jamiedegois/Desktop/pipeStartQuick/sextractorStart/test.cat',outPutLocation + 'sextractor-' + newFileName.replace(".fits", ".cat"))
+
+    else: # only want to recalculate centre
+        subprocess_cmd('cd /home/jamiedegois/Desktop/pipeStartQuick/sextractorStart; sextractor test.fits -c default_12_SIGMA.sex')
+
+        Stilts.stitlsANDJoinCSV('600', 'ALPHAWIN_J2000', 'DELTAWIN_J2000','X_WORLD' , 'Y_WORLD',
+                             "/home/jamiedegois/Desktop/pipeStartQuick/sextractorStart/test.cat#2",
+                             "/home/jamiedegois/Desktop/pipeStartQuick/sextractorStart/reCalcCentre.fits",
+                             '/home/jamiedegois/Desktop/pipeStartQuick/sextractorStart/reCenterOutputCat.csv')
+
+        catalogue = np.genfromtxt('/home/jamiedegois/Desktop/pipeStartQuick/sextractorStart/reCenterOutputCat.csv', delimiter=",")
+
+        if (len(catalogue) > 0  and catalogue.ndim>1) :  # if more than 100 sources detected and crossMatched, proceed with calibration
+            catAlpha = catalogue[::, 10:11:]
+            catDelta = catalogue[::, 11:12:]
+            sexAlpha = catalogue[::, 4:5:]
+            sexDelta = catalogue[::, 5:6:]
+
+            alphaDiff=np.subtract(catAlpha,sexAlpha)
+            deltaDiff = np.subtract(catDelta,sexDelta)
+
+            print np.median(alphaDiff)*3600
+            print np.median(deltaDiff)*3600
+
+            newFits[0].header['CRVAL1'] = newCenterCoord1+np.median(alphaDiff)
+            newFits[0].header['CRVAL2'] = newCenterCoord2+np.median(deltaDiff)
+
+            newFits.writeto('/home/jamiedegois/Desktop/pipeStartQuick/sextractorStart/test.fits', clobber=True)
+
+            if (calibrateOnly==False):
+                subprocess_cmd(
+                    'cd /home/jamiedegois/Desktop/pipeStartQuick/sextractorStart; sextractor test.fits -c default_12_SIGMA.sex')
+
+                Stilts.stitlsANDJoinCSV('180', 'ALPHAWIN_J2000', 'DELTAWIN_J2000', 'X_WORLD', 'Y_WORLD',
+                                        "/home/jamiedegois/Desktop/pipeStartQuick/sextractorStart/test.cat#2",
+                                        "/home/jamiedegois/Desktop/pipeStartQuick/sextractorStart/reCalcCentre.fits",
+                                        '/home/jamiedegois/Desktop/pipeStartQuick/sextractorStart/reCenterOutputCat.csv')
+
+
+            copyfile('/home/jamiedegois/Desktop/pipeStartQuick/sextractorStart/test.fits',
+                     outPutLocation + 'QUICK' + newFileName +str(len(catalogue)))
+            # copyfile('/home/jamiedegois/Desktop/pipeStartQuick/sextractorStart/better_astr_referror2d_1.svg',outPutLocation + 'CHECKPLOT-' + newFileName.replace(".fits", ".svg"))
+            # copyfile('/home/jamiedegois/Desktop/pipeStartQuick/sextractorStart/full_1.cat',outPutLocation + 'FULL-' + newFileName.replace(".fits", ".catalogue"))
+            # copyfile('/home/jamiedegois/Desktop/pipeStartQuick/sextractorStart/merged_1.cat',outPutLocation + 'MERGED-' + newFileName.replace(".fits", ".catalogue"))
+            copyfile('/home/jamiedegois/Desktop/pipeStartQuick/sextractorStart/test.cat',
+                     outPutLocation + 'sextractor-' + newFileName.replace(".fits", ".cat"))
+            copyfile('/home/jamiedegois/Desktop/pipeStartQuick/sextractorStart/reCenterOutputCat.csv',
+                     outPutLocation + 'RECENTRE-' + newFileName.replace(".fits", ".csv"))
+
+
+
+
+        else:  # (less than 100 sources)
+            print"###########warning#############"
+            file = open('/home/jamiedegois/Desktop/pipeStartQuick/ERRORLOG.txt', 'a')
+            file.write(
+                'Error 02CENTRE:Less Than 100 Sources detected- only ref image calibration applied to image\n')
+            file.write('    File affected:' + newFileName + '\n')
+            file.close()
+
+            copyfile('/home/jamiedegois/Desktop/pipeStartQuick/sextractorStart/test.fits',
+                     outPutLocation + 'QUICK' + newFileName+'-WARNING')
+            # copyfile('/home/jamiedegois/Desktop/pipeStartQuick/sextractorStart/better_astr_referror2d_1.svg',outPutLocation + 'CHECKPLOT-' + newFileName.replace(".fits", ".svg"))
+            # copyfile('/home/jamiedegois/Desktop/pipeStartQuick/sextractorStart/full_1.cat',outPutLocation + 'FULL-' + newFileName.replace(".fits", ".catalogue"))
+            # copyfile('/home/jamiedegois/Desktop/pipeStartQuick/sextractorStart/merged_1.cat',outPutLocation + 'MERGED-' + newFileName.replace(".fits", ".catalogue"))
+            copyfile('/home/jamiedegois/Desktop/pipeStartQuick/sextractorStart/test.cat',
+                     outPutLocation + 'sextractor-' + newFileName.replace(".fits", ".cat")+'-WARNING')
+
+
+
+
+
+
+
+def runSwarp(numImagesPerStack,outPutDir='/home/jamiedegois/Desktop/pipeStartQuick/swarp'):
+    import smallPrograms as smalls
+    import subprocess
     def subprocess_cmd(command):
         process = subprocess.Popen(command,stdout=subprocess.PIPE, shell=True)
         proc_stdout = process.communicate()[0].strip()
         print proc_stdout
 
+    swarpFileList = smalls.fileInputList('/home/jamiedegois/Desktop/pipeStartQuick/swarpFileList.txt')
+    jj=0
+    swarpString=''
+    for ii in range (0,(len(swarpFileList)-1)/numImagesPerStack,1):
+        outputName=swarpFileList[jj].split("/")[-1]
+        for kk in range (0,numImagesPerStack,1):
+            swarpString=swarpString +' '+swarpFileList[jj]
+            jj=jj+1
+        subprocess_cmd('cd '+outPutDir+';/home/jamiedegois/bin/SWARP/bin/swarp'+swarpString+' -c /home/jamiedegois/Desktop/pipeStartQuick/default.swarp -IMAGEOUT_NAME '+outputName+'co-add.fits'+
+                       ' -WEIGHTOUT_NAME '+outputName+'co-add.weight.fits')
+        swarpString = ''
 
-    subprocess_cmd('cd /home/jamiedegois/Desktop/pipeStartQuick/sextractorStart; sextractor test.fits;scamp test.cat -c scamp3.conf')
+def runSextractor(newFileName,outputDir='/home/jamiedegois/Desktop/pipeStartQuick/Output'):
+    try:
+        import subprocess
+        from shutil import copyfile
+        def subprocess_cmd(command):
+            process = subprocess.Popen(command, stdout=subprocess.PIPE, shell=True)
+            proc_stdout = process.communicate()[0].strip()
+            print proc_stdout
 
-############################################# Write refined Astrometric solution to header and run SExtractor again ##########################
-
-
-    f = open('/home/jamiedegois/Desktop/pipeStartQuick/sextractorStart/test.head')
-    data= f.read()
-
-    data= data.replace(" / ","#")
-    data= data.replace(" ","")
-    data= data.split("\n",3)[3]
-
-    data= re.split('=|#|\n',data)
-
-    keys = data[0:287:3]
-
-
-    values = data[1:287:3]
-
-    from astropy.io import fits
-    data, header = fits.getdata("/home/jamiedegois/Desktop/pipeStartQuick/sextractorStart/test.fits", header=True)
-
-    for ii in range (96):
-        try:
-            header[keys[ii]] = int(values[ii])
-        except ValueError:
-            try:
-                header[keys[ii]] = float(values[ii])
-            except ValueError:
-                pass #it is a string and can be done manually
-    header['CTYPE1'] = 'RA---TPV'
-    header['CTYPE2'] = 'DEC--TPV'
-    header['CUNIT1'] = 'deg'
-    header['CUNIT2'] = 'deg'
-    header['RADESYS'] = 'ICRS'
-
-
-    fits.writeto("/home/jamiedegois/Desktop/pipeStartQuick/sextractorStart/test.fits",data, header, clobber=True)
-    if ((calibrateOnly)):
-        pass
-    else:
-        subprocess_cmd('cd /home/jamiedegois/Desktop/pipeStartQuick/sextractorStart; sextractor test.fits -c default2.sex')
-
-    copyfile('/home/jamiedegois/Desktop/pipeStartQuick/sextractorStart/test.fits','/home/jamiedegois/Desktop/pipeStartQuick/Output/QUICK' + newFileName)
-    copyfile('/home/jamiedegois/Desktop/pipeStartQuick/sextractorStart/better_astr_referror2d_1.svg','/home/jamiedegois/Desktop/pipeStartQuick/Output/CHECKPLOT-' + newFileName.replace(".fits",".svg"))
-    copyfile('/home/jamiedegois/Desktop/pipeStartQuick/sextractorStart/full_1.cat','/home/jamiedegois/Desktop/pipeStartQuick/Output/FULL-' + newFileName.replace(".fits",".catalogue"))
-    copyfile('/home/jamiedegois/Desktop/pipeStartQuick/sextractorStart/merged_1.cat','/home/jamiedegois/Desktop/pipeStartQuick/Output/MERGED-' + newFileName.replace(".fits",".catalogue"))
-    copyfile('/home/jamiedegois/Desktop/pipeStartQuick/sextractorStart/test.cat','/home/jamiedegois/Desktop/pipeStartQuick/Output/sextractor-' + newFileName.replace(".fits",".cat"))
-
-
-
-
+        copyfile(newFileName, '/home/jamiedegois/Desktop/pipeStartQuick/sextractorStart/test.fits')
+        subprocess_cmd(
+            'cd /home/jamiedegois/Desktop/pipeStartQuick/sextractorStart; sextractor test.fits -c default2.sex')
+        newFileName = newFileName.split("/")[-1]
+        copyfile('/home/jamiedegois/Desktop/pipeStartQuick/sextractorStart/test.cat',
+                 outputDir+'/sextractor-' + newFileName.replace(".fits", ".cat"))
+    except:
+        print "oops"
 
 #
 # import subprocess
