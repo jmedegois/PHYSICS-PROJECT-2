@@ -1,4 +1,5 @@
-def pipeStartQuick(newFileName,calibrateOnly=False,recalcCentreOnly=False,outPutLocation='/home/jamiedegois/Desktop/pipeStartQuick/Output/'):
+def imageCalibrator(newFileName, calibrateOnly=False, recalcCentreOnly=False, applyRefImageOnly=False, outPutLocation='/home/jamiedegois/Desktop/pipeStartQuick/Output/',
+                    returnRefImageDIR = False, minSources=1500, inRefFits='/home/jamiedegois/Desktop/pipeStartQuick/refQuick.fits'):
     import subprocess
     import Stilts
     from shutil import copyfile
@@ -14,9 +15,10 @@ def pipeStartQuick(newFileName,calibrateOnly=False,recalcCentreOnly=False,outPut
         process = subprocess.Popen(command,stdout=subprocess.PIPE, shell=True)
         proc_stdout = process.communicate()[0].strip()
         print proc_stdout
+    lenCat=0
 
     ###1 importing both images
-    refFits = fits.open('/home/jamiedegois/Desktop/pipeStartQuick/refQuick.fits')
+    refFits = fits.open(inRefFits)
     newFits = fits.open(newFileName)
 
     newFileName=newFileName.split("/")[-1]
@@ -83,8 +85,26 @@ def pipeStartQuick(newFileName,calibrateOnly=False,recalcCentreOnly=False,outPut
     newFits.writeto('/home/jamiedegois/Desktop/pipeStartQuick/sextractorStart/test.fits', clobber=True)
     print("###############   all done :)   #############")
 
+    if applyRefImageOnly:
+
+        # subprocess_cmd(
+        #     'cd /home/jamiedegois/Desktop/pipeStartQuick/sextractorStart; sextractor test.fits -c default_12_SIGMA.sex')
+        #
+        # Stilts.stitlsANDJoinCSV('300', 'ALPHAWIN_J2000', 'DELTAWIN_J2000', 'X_WORLD', 'Y_WORLD',
+        #                         "/home/jamiedegois/Desktop/pipeStartQuick/sextractorStart/test.cat#2",
+        #                         "/home/jamiedegois/Desktop/pipeStartQuick/sextractorStart/reCalcCentre.fits",
+        #                         '/home/jamiedegois/Desktop/pipeStartQuick/sextractorStart/reCenterOutputCat.csv')
+        # copyfile('/home/jamiedegois/Desktop/pipeStartQuick/sextractorStart/reCenterOutputCat.csv',
+        #          outPutLocation + 'RECENTRE-' + newFileName.replace(".fits", ".csv"))
+        # copyfile('/home/jamiedegois/Desktop/pipeStartQuick/sextractorStart/test.cat',
+        #          outPutLocation + 'sextractor-' + newFileName.replace(".fits", ".cat"))
+        copyfile('/home/jamiedegois/Desktop/pipeStartQuick/sextractorStart/test.fits',
+                 outPutLocation + 'QUICK' + newFileName)
+
+        return
+
     if (recalcCentreOnly == False):
-    ###########################################do SEXTRACTOR AND SCAMP (PLUS CHECK IF >100 sources) ##############################
+    ###########################################do SEXTRACTOR AND SCAMP (PLUS CHECK IF >minSources) ##############################
 
 
 
@@ -92,9 +112,10 @@ def pipeStartQuick(newFileName,calibrateOnly=False,recalcCentreOnly=False,outPut
 
         subprocess_cmd('cd /home/jamiedegois/Desktop/pipeStartQuick/sextractorStart; sextractor test.fits')
         cat = fits.open('/home/jamiedegois/Desktop/pipeStartQuick/sextractorStart/test.cat')
+        lenCat=len(cat[2].data)
 
 
-        if(len(cat[2].data)>100): #if more than 100 sources detected, proceed with calibration
+        if(lenCat>minSources): #if more than minSources  detected, proceed with calibration
             subprocess_cmd('cd /home/jamiedegois/Desktop/pipeStartQuick/sextractorStart; scamp test.cat -c scamp3.conf')
 
 
@@ -144,7 +165,7 @@ def pipeStartQuick(newFileName,calibrateOnly=False,recalcCentreOnly=False,outPut
             if ((calibrateOnly)):
                 pass
             else:
-                subprocess_cmd('cd /home/jamiedegois/Desktop/pipeStartQuick/sextractorStart; sextractor test.fits -c default2.sex')
+                subprocess_cmd('cd /home/jamiedegois/Desktop/pipeStartQuick/sextractorStart; sextractor test.fits')
 
             ########CREATE CSV#####
             subprocess_cmd(
@@ -157,17 +178,17 @@ def pipeStartQuick(newFileName,calibrateOnly=False,recalcCentreOnly=False,outPut
 
             copyfile('/home/jamiedegois/Desktop/pipeStartQuick/sextractorStart/test.fits',outPutLocation+'QUICK' + newFileName)
             copyfile('/home/jamiedegois/Desktop/pipeStartQuick/sextractorStart/better_astr_referror2d_1.svg',outPutLocation+'CHECKPLOT-' + newFileName.replace(".fits",".svg"))
-            copyfile('/home/jamiedegois/Desktop/pipeStartQuick/sextractorStart/full_1.cat',outPutLocation+'FULL-' + newFileName.replace(".fits",".catalogue"))
-            copyfile('/home/jamiedegois/Desktop/pipeStartQuick/sextractorStart/merged_1.cat',outPutLocation+'MERGED-' + newFileName.replace(".fits",".catalogue"))
+            # copyfile('/home/jamiedegois/Desktop/pipeStartQuick/sextractorStart/full_1.cat',outPutLocation+'FULL-' + newFileName.replace(".fits",".catalogue"))
+            # copyfile('/home/jamiedegois/Desktop/pipeStartQuick/sextractorStart/merged_1.cat',outPutLocation+'MERGED-' + newFileName.replace(".fits",".catalogue"))
             copyfile('/home/jamiedegois/Desktop/pipeStartQuick/sextractorStart/test.cat',outPutLocation+'sextractor-' + newFileName.replace(".fits",".cat"))
             copyfile('/home/jamiedegois/Desktop/pipeStartQuick/sextractorStart/reCenterOutputCat.csv',
                      outPutLocation + 'RECENTRE-' + newFileName.replace(".fits", ".csv"))
 
 
-        else: #(less than 100 sources)
+        else: #(less than minSources sources)
             file = open('/home/jamiedegois/Desktop/pipeStartQuick/ERRORLOG.txt', 'a')
             file.write(
-                'Error 02:Less Than 100 Sources detected- only ref image calibration applied to image\n')
+                'Error 02:Less Than '+str(minSources)+ ' Sources detected- only ref image calibration applied to image\n')
             file.write('    File affected:' + newFileName + '\n')
             file.close()
 
@@ -187,7 +208,7 @@ def pipeStartQuick(newFileName,calibrateOnly=False,recalcCentreOnly=False,outPut
 
         catalogue = np.genfromtxt('/home/jamiedegois/Desktop/pipeStartQuick/sextractorStart/reCenterOutputCat.csv', delimiter=",")
 
-        if (len(catalogue) > 0  and catalogue.ndim>1) :  # if more than 100 sources detected and crossMatched, proceed with calibration
+        if (len(catalogue) > minSources  and catalogue.ndim>1) :  # if more than minSources sources detected and crossMatched, proceed with calibration
             catAlpha = catalogue[::, 10:11:]
             catDelta = catalogue[::, 11:12:]
             sexAlpha = catalogue[::, 4:5:]
@@ -203,6 +224,8 @@ def pipeStartQuick(newFileName,calibrateOnly=False,recalcCentreOnly=False,outPut
             newFits[0].header['CRVAL2'] = newCenterCoord2+np.median(deltaDiff)
 
             newFits.writeto('/home/jamiedegois/Desktop/pipeStartQuick/sextractorStart/test.fits', clobber=True)
+
+
 
             if (calibrateOnly==False):
                 subprocess_cmd(
@@ -227,11 +250,11 @@ def pipeStartQuick(newFileName,calibrateOnly=False,recalcCentreOnly=False,outPut
 
 
 
-        else:  # (less than 100 sources)
+        else:  # (less than minSources sources)
             print"###########warning#############"
             file = open('/home/jamiedegois/Desktop/pipeStartQuick/ERRORLOG.txt', 'a')
             file.write(
-                'Error 02CENTRE:Less Than 100 Sources detected- only ref image calibration applied to image\n')
+                'Error 02CENTRE:Less Than '+minSources+' Sources detected- only ref image calibration applied to image\n')
             file.write('    File affected:' + newFileName + '\n')
             file.close()
 
@@ -242,6 +265,14 @@ def pipeStartQuick(newFileName,calibrateOnly=False,recalcCentreOnly=False,outPut
             # copyfile('/home/jamiedegois/Desktop/pipeStartQuick/sextractorStart/merged_1.cat',outPutLocation + 'MERGED-' + newFileName.replace(".fits", ".catalogue"))
             copyfile('/home/jamiedegois/Desktop/pipeStartQuick/sextractorStart/test.cat',
                      outPutLocation + 'sextractor-' + newFileName.replace(".fits", ".cat")+'-WARNING')
+    print "lenCAt:"+str(lenCat)
+    print minSources
+
+    if returnRefImageDIR:
+        if lenCat>minSources:
+            return outPutLocation + 'QUICK' + newFileName
+        else:
+            return None
 
 
 
@@ -249,43 +280,74 @@ def pipeStartQuick(newFileName,calibrateOnly=False,recalcCentreOnly=False,outPut
 
 
 
-def runSwarp(numImagesPerStack,outPutDir='/home/jamiedegois/Desktop/pipeStartQuick/swarp'):
-    import smallPrograms as smalls
+def runSwarp(inDIRlist,numImagesPerStack=20,outPutDir='/home/jamiedegois/Desktop/pipeStartQuick/swarp',doRunt=False):
     import subprocess
+    import shutil
     def subprocess_cmd(command):
         process = subprocess.Popen(command,stdout=subprocess.PIPE, shell=True)
         proc_stdout = process.communicate()[0].strip()
         print proc_stdout
 
-    swarpFileList = smalls.fileInputList('/home/jamiedegois/Desktop/pipeStartQuick/swarpFileList.txt')
+
+    swarpFileList = inDIRlist
     jj=0
     swarpString=''
-    for ii in range (0,(len(swarpFileList)-1)/numImagesPerStack,1):
+    refDirList=[]
+    for ii in range (0,(len(swarpFileList))/numImagesPerStack,1):
         outputName=swarpFileList[jj].split("/")[-1]
+        try:
+            shutil.copy('/home/jamiedegois/Desktop/pipeStartQuick/coadd.coaddhead',
+                        outPutDir + '/' + outputName + 'co-add.coaddhead')
+        except:
+            pass
         for kk in range (0,numImagesPerStack,1):
             swarpString=swarpString +' '+swarpFileList[jj]
             jj=jj+1
         subprocess_cmd('cd '+outPutDir+';/home/jamiedegois/bin/SWARP/bin/swarp'+swarpString+' -c /home/jamiedegois/Desktop/pipeStartQuick/default.swarp -IMAGEOUT_NAME '+outputName+'co-add.fits'+
                        ' -WEIGHTOUT_NAME '+outputName+'co-add.weight.fits')
         swarpString = ''
+        refDirList.append(outPutDir+outputName+'co-add.fits')
+
+    if (doRunt==True and ((len(swarpFileList)%numImagesPerStack)>1)):# if want to do final set of images, and the final list is not an empty list (or a single image)
+        swarpFileList=swarpFileList[jj::]
+        outputName = swarpFileList[0].split("/")[-1]
+        try:
+            shutil.copy('/home/jamiedegois/Desktop/pipeStartQuick/coadd.coaddhead',
+                        outPutDir + '/' + outputName + 'co-add.coaddhead')
+        except:
+            pass
+        for ll in range(len(swarpFileList)):
+            swarpString = swarpString + ' ' + swarpFileList[ll]
+        subprocess_cmd(
+            'cd ' + outPutDir + ';/home/jamiedegois/bin/SWARP/bin/swarp' + swarpString + ' -c /home/jamiedegois/Desktop/pipeStartQuick/default.swarp -IMAGEOUT_NAME ' + outputName + 'co-add.fits' +
+            ' -WEIGHTOUT_NAME ' + outputName + 'co-add.weight.fits')
+        refDirList.append(outPutDir + outputName + 'co-add.fits')
+    return refDirList
+
+
+
 
 def runSextractor(newFileName,outputDir='/home/jamiedegois/Desktop/pipeStartQuick/Output'):
-    try:
-        import subprocess
-        from shutil import copyfile
-        def subprocess_cmd(command):
-            process = subprocess.Popen(command, stdout=subprocess.PIPE, shell=True)
-            proc_stdout = process.communicate()[0].strip()
-            print proc_stdout
+    import subprocess
+    from shutil import copyfile
+    def subprocess_cmd(command):
+        process = subprocess.Popen(command, stdout=subprocess.PIPE, shell=True)
+        proc_stdout = process.communicate()[0].strip()
+        print proc_stdout
 
-        copyfile(newFileName, '/home/jamiedegois/Desktop/pipeStartQuick/sextractorStart/test.fits')
-        subprocess_cmd(
-            'cd /home/jamiedegois/Desktop/pipeStartQuick/sextractorStart; sextractor test.fits -c default2.sex')
-        newFileName = newFileName.split("/")[-1]
-        copyfile('/home/jamiedegois/Desktop/pipeStartQuick/sextractorStart/test.cat',
-                 outputDir+'/sextractor-' + newFileName.replace(".fits", ".cat"))
-    except:
-        print "oops"
+    copyfile(newFileName, '/home/jamiedegois/Desktop/pipeStartQuick/sextractorStart/test.fits')
+    subprocess_cmd(
+        'cd /home/jamiedegois/Desktop/pipeStartQuick/sextractorStart; sextractor test.fits -c default2.sex')
+    newFileName = newFileName.split("/")[-1]
+    copyfile('/home/jamiedegois/Desktop/pipeStartQuick/sextractorStart/test.cat',
+             outputDir+'/sextractor-' + newFileName.replace(".fits", ".cat"))
+    return outputDir+'/sextractor-' + newFileName.replace(".fits", ".cat")
+
+
+def numSexDetects():
+    pass
+
+
 
 #
 # import subprocess

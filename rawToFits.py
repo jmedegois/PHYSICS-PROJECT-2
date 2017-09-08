@@ -19,5 +19,6 @@ print "Max is    :"+str(np.amax(greenPixels))
 print "Mean is   :"+str(np.mean(greenPixels))
 print "Median is :"+str(np.median(greenPixels))
 
-plt.hist(greenPixelsNoOutliers, bins=400)
+plt.hist(greenPixels, bins=400,log=True)
 plt.show()
+

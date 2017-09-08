@@ -6,9 +6,9 @@ import matplotlib.mlab as mlab
 ###################################################################################INITIAL CONDITIONS##########################################
 csv1 = np.genfromtxt ('/home/jamiedegois/Desktop/Position_dependancy/ALL_LONELY_STARS', delimiter=",")
 csv= np.transpose(csv1)
-flux=7500
-fluxUppr=100000
-LwrLimit=10
+flux=500
+fluxUppr=15000000
+LwrLimit=6
 UpLimit=60
 ###############################################################################################################################################
 multiMap1= fits.open('/home/jamiedegois/Desktop/n4.2.fits')[0].data
@@ -47,7 +47,8 @@ def applyFluxMultilipersToCSV(inCSV,Map,startFlux=4,startX=6,startY=7,cols=6):
     return inCSV
 
 csv=applyFluxMultilipersToCSV(csv,Map=multiMap1)
-csv=applyFluxMultilipersToCSV(csv,Map=multiMap2)
+csv=applyFluxMultilipersToCSV(csv,Map=multiMap2) #tweaking map
+# np.savetxt('/home/jamiedegois/Desktop/ALLLONELYSTARSWITHMAP1AND2', np.transpose(csv), delimiter=',')#save the file with both maps applied to it
 
 hdulist1 = fits.open('/home/jamiedegois/Desktop/n.fits')
 pixelScale1= hdulist1[0].data
@@ -74,10 +75,10 @@ for ii in range(len(csv[0])):
             else:
                 # print np.int(x1[jj])
                 # print np.int(x2[jj])
-                x[jj]=pixelScale1[(np.int(x2[jj]-2)),(np.int(x1[jj]-2))]*pixelScale2[(np.int(x2[jj]-2)),(np.int(x1[jj]-2))]###    why2 ? close enough and stoped index errors (pixel scale wont change over 2 pixels)
+                x[jj]=pixelScale1[(np.int(x2[jj]-3)),(np.int(x1[jj]-3))]*pixelScale2[(np.int(x2[jj]-3)),(np.int(x1[jj]-3))]###    why 3 ? close enough and stoped index errors (pixel scale wont change over 2 pixels)
                 # print x[jj]
         plt.figure(0)
-        plt.ylim([0.6, 1.4])
+        plt.ylim([.5, 2])
         plt.xlim([35*35, 70*70])
         plt.grid(True)
         # plt.scatter(x, y,s=0.2)
@@ -131,12 +132,30 @@ print 'c:'
 print intercept
 
 
-plt.plot(np.arange(1750,4750),cubicReg(gradient3,gradient2,gradient1,intercept,np.arange(1750,4750)))
-plt.scatter(xlist, ylist,s=0.03)
+# plt.plot(np.arange(1750,4750),cubicReg(gradient3,gradient2,gradient1,intercept,np.arange(1750,4750)))
+plt.yscale('log')
+# extraticks=[1.74, 1.51, 1.32, 1.15, 1, 0.87, 0.76, 0.66, 0.57]
+# plt.yticks(extraticks)
+plt.ylim([.5, 2])
+plt.scatter(xlist, ylist,s=0.003)
+
+
+#######################histogram of ratios in log space
+plt.figure(3)
+plt.xlim(np.log10(0.5),np.log10(2))
+plt.hist(np.log10(ylist), normed=True,bins=20000)
+
+mean = np.median(np.log10(ylist))
+variance = np.var(np.log10(ylist))
+sigma = np.sqrt(variance)
+x = np.linspace(np.log10(0.5),np.log10(2), 100)
+plt.plot(x, mlab.normpdf(x, mean, sigma))
+print "sigma histogram is: "
+print sigma
 
 print'###############################################'
 plt.figure(1)
-plt.ylim([0.6, 1.4])
+plt.ylim([.5, 2])
 plt.xlim([35 * 35, 70 * 70])
 plt.grid(True)
 resid= np.subtract(ylist,    cubicReg(gradient3,gradient2,gradient1,intercept,xlist)   )  #actual-trendline
@@ -189,7 +208,7 @@ print gradient3
 print 'c:'
 print intercept
 plt.plot(np.arange(1750,4750),cubicReg(gradient3,gradient2,gradient1,intercept,np.arange(1750,4750)))
-plt.scatter(xlist, ylist,s=0.03)
+plt.scatter(xlist, ylist,s=0.003)
 plt.show()
 
 
