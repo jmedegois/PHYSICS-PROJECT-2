@@ -35,6 +35,7 @@ for ii in range(1,len(catFiles)):
     joinedCat = joinedCat.merge(df, left_on='recno', right_on='recno', how='outer')
     joinedCat=joinedCat.drop(joinedCat.columns[count:count+4],axis=1)
     count=len(joinedCat.columns)
+    print ii/(len(catFiles)+0.0001)
 joinedCat.drop_duplicates(subset='recno', inplace=True)
 array=joinedCat.as_matrix()
 
@@ -66,7 +67,7 @@ for ii in range(len(containsMesurement)):
     plt.figure(ii)
     plt.scatter(times, fluxesLists[ii])
     plt.ylim(0,max(fluxesLists[ii]))
-    plt.title(Mag[ii])
+    plt.title(str(Mag[ii]))
 plt.show()
 embed()
 

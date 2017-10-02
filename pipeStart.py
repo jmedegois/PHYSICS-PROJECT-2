@@ -99,6 +99,7 @@ def pipeStart(outputDir,startDirectory='',n=20,p=40,k=1500,TychoCatalogueDir='/h
     filelist.sort()
     masterList=segDate(filelist,-33,-23)
 
+
     ################################# Calibrate refImages and Create refList  #####################
     refTable=pd.DataFrame(columns=['Date' ,'Image_Number','Original_Dir','Ref_Dir','Cloud_Flag'])
     for ii in range (len(masterList)):
@@ -115,6 +116,8 @@ def pipeStart(outputDir,startDirectory='',n=20,p=40,k=1500,TychoCatalogueDir='/h
 
         else:#enough images in the day, continue with calibrating ref images
             currList= masterList[ii][p:-p:n]
+            if p==0:
+                currList = masterList[ii][p::n]
             for jj in range(len(currList)):
                 refImageDir=pip.imageCalibrator(currList[jj], False, False, False, outputDir + '/Temp/', True,k)
                 if refImageDir!=None:
@@ -243,10 +246,15 @@ def pipeStart(outputDir,startDirectory='',n=20,p=40,k=1500,TychoCatalogueDir='/h
 
 
 def Join_AND_correct(outPutCatDIR,TychoCatalogueDir='/home/jamiedegois/Desktop/pipeStartQuick/TyIDRef.fits',
-                     FlatfieldDIR='/media/jamiedegois/JaimedeGois2TBPortable/Sem_2/TestPIPE/FinalCatalogues/CorrectionMap8Feb_ALMostCompTransitMoreMag9_SecondIteration.fits'):
+                     FlatfieldDIR='/media/jamiedegois/JaimedeGois2TBPortable/Sem_2/TestPIPE/FinalCatalogues/CorrectionMap8Feb_ALMostCompTransitMoreMag9_new.fits',
+                     tweakFlatFieldDir='/media/jamiedegois/JaimedeGois2TBPortable/Sem_2/TestPIPE/FinalCatalogues/CorrectionMap8Feb_ALMostCompTransitMoreMag9_SecondIteration_new.fits',
+                     tweakFlatFieldDir2='/media/jamiedegois/JaimedeGois2TBPortable/Sem_2/TestPIPE/FinalCatalogues/CorrectionMap8Feb_ALMostCompTransitMoreMag9_ThirdIteration_new.fits',
+                     tweakFlatFieldDir3='/media/jamiedegois/JaimedeGois2TBPortable/Sem_2/TestPIPE/FinalCatalogues/CorrectionMap8Feb_ALMostCompTransitMoreMag9_FourthIteration_new.fits'):
     # this functions joins all the day catalogues, applys correction maps and only keep columns of intrest
     #####First add time to all co-add catalogues and apply correction maps
     List = smalls.fileInputList('/media/jamiedegois/JaimedeGois2TBPortable/Sem_2/TestPIPE/FinalCatalogues/SexDirList')[:-1]
+    fitsFlat = fits.open(FlatfieldDIR)
+    Map1 = fitsFlat[0].data
     for ii in range(len(List)):
         refFits = fits.open(List[ii])
         #/media/jamiedegois/JaimedeGois2TBPortable/Sem_2/TestPIPE/FinalImages/Catalogues/sextractor-QUICK01_2016-02-15_183022_DSC_1061-G.catco-add.cat
@@ -254,23 +262,58 @@ def Join_AND_correct(outPutCatDIR,TychoCatalogueDir='/home/jamiedegois/Desktop/p
         arrayTime = np.array([time] * len(refFits[2].data))
         c1=fits.Column(name="DateTime", format="A17",array=arrayTime)
         newColumns=refFits[2].columns[:6] + c1
-        fitsFlat=fits.open(FlatfieldDIR)
-        Map1 = fitsFlat[0].data
-        xBegin=fitsFlat[0].header['XBEGIN  ']
-        xEnd = fitsFlat[0].header['XEnd    ']
-        yBegin=fitsFlat[0].header['YBEGIN  ']
-        yEnd = fitsFlat[0].header['YEnd    ']
-        hdu = fits.BinTableHDU.from_columns(newColumns)
+        tweakFitsFlat=fits.open(tweakFlatFieldDir)
+        tweakFitsFlat2 = fits.open(tweakFlatFieldDir2)
+        tweakFitsFlat3 = fits.open(tweakFlatFieldDir3)
+        Map2= tweakFitsFlat[0].data
+        Map3=tweakFitsFlat2[0].data
+        Map4=tweakFitsFlat3[0].data
+        xBegin1=fitsFlat[0].header['XBEGIN  ']
+        xEnd1 = fitsFlat[0].header['XEnd    ']
+        yBegin1=fitsFlat[0].header['YBEGIN  ']
+        yEnd1 = fitsFlat[0].header['YEnd    ']
+        xBegin2 = tweakFitsFlat[0].header['XBEGIN  ']
+        xEnd2 = tweakFitsFlat[0].header['XEnd    ']
+        yBegin2 = tweakFitsFlat[0].header['YBEGIN  ']
+        yEnd2 = tweakFitsFlat[0].header['YEnd    ']
+        xBegin3 = tweakFitsFlat2[0].header['XBEGIN  ']
+        xEnd3 = tweakFitsFlat2[0].header['XEnd    ']
+        yBegin3 = tweakFitsFlat2[0].header['YBEGIN  ']
+        yEnd3 = tweakFitsFlat2[0].header['YEnd    ']
+        xBegin4 = tweakFitsFlat3[0].header['XBEGIN  ']
+        xEnd4 = tweakFitsFlat3[0].header['XEnd    ']
+        yBegin4 = tweakFitsFlat3[0].header['YBEGIN  ']
+        yEnd4 = tweakFitsFlat3[0].header['YEnd    ']
 
+
+
+        # xBegin=xBegin1
+        # xEnd=xEnd1
+        # yBegin=yBegin1
+        # yEnd=yEnd1
+        # xBegin=0
+        # xEnd=6000
+        # yBegin=0
+        # yEnd=6000
+        xBegin = max(xBegin1, xBegin2,xBegin3,xBegin4)
+        xEnd = min(xEnd1, xEnd2,xEnd3,xEnd4)
+        yBegin = max(yBegin1, yBegin2,yBegin3,yBegin4)
+        yEnd = min(yEnd1, yEnd2,yEnd3,yEnd4)
+        hdu = fits.BinTableHDU.from_columns(newColumns)
+        #
         #####remove all entries not in flat field region#####
         selectionBoolx=np.logical_and(hdu.data['XWIN_IMAGE']>(xBegin+1),hdu.data['XWIN_IMAGE']<(xEnd-1))
         selectionBooly=np.logical_and(hdu.data['YWIN_IMAGE']>(yBegin+1),hdu.data['YWIN_IMAGE']<(yEnd-1))
         selectionBool=np.logical_and(selectionBoolx,selectionBooly)
         hdu.data=hdu.data[selectionBool]
-        ###########apply flat field##########################
-        hdu.data['FLUX_AUTO']=np.divide(hdu.data['FLUX_AUTO'],Map1[np.int_(hdu.data['YWIN_IMAGE'])-yBegin,np.int_(hdu.data['XWIN_IMAGE'])-xBegin])
-        hdu.data['FLUXERR_AUTO'] = np.divide(hdu.data['FLUXERR_AUTO'], Map1[
-            np.int_(hdu.data['YWIN_IMAGE']) - yBegin, np.int_(hdu.data['XWIN_IMAGE']) - xBegin])
+        # ###########apply flat field##########################
+        hdu.data['FLUX_AUTO']=np.divide(hdu.data['FLUX_AUTO'],Map1[np.int_(hdu.data['YWIN_IMAGE'])-yBegin1,np.int_(hdu.data['XWIN_IMAGE'])-xBegin1])
+        # hdu.data['FLUXERR_AUTO'] = np.divide(hdu.data['FLUXERR_AUTO'], Map1[np.int_(hdu.data['YWIN_IMAGE']), np.int_(hdu.data['XWIN_IMAGE'])])
+        hdu.data['FLUX_AUTO'] = np.divide(hdu.data['FLUX_AUTO'], Map2[np.int_(hdu.data['YWIN_IMAGE']) - yBegin2, np.int_(hdu.data['XWIN_IMAGE']) - xBegin2])
+        hdu.data['FLUX_AUTO'] = np.divide(hdu.data['FLUX_AUTO'], Map3[np.int_(hdu.data['YWIN_IMAGE']) - yBegin3, np.int_(hdu.data['XWIN_IMAGE']) - xBegin3])
+        hdu.data['FLUX_AUTO'] = np.divide(hdu.data['FLUX_AUTO'], Map4[np.int_(hdu.data['YWIN_IMAGE']) - yBegin4, np.int_(hdu.data['XWIN_IMAGE']) - xBegin4])
+        # hdu.data['FLUXERR_AUTO'] = np.divide(hdu.data['FLUXERR_AUTO'], Map2[np.int_(hdu.data['YWIN_IMAGE']) - yBegin2, np.int_(hdu.data['XWIN_IMAGE']) - xBegin2])
+        # hdu.data['FLUXERR_AUTO'] = np.divide(hdu.data['FLUXERR_AUTO'], Map3[np.int_(hdu.data['YWIN_IMAGE']) - yBegin3, np.int_(hdu.data['XWIN_IMAGE']) - xBegin3])
         hdu.writeto(List[ii] + ".fits", overwrite=True)
         # newColumns[0].array=np.divide(newColumns[0].array,Map1[np.int_(newColumns[3].array)%6000,np.int_(newColumns[2].array)% 6000])#applying correction maps to flux and flux err.....
         #                                                                                                                             # mod 6000 cos some ximages are outside image????
@@ -287,7 +330,7 @@ def Join_AND_correct(outPutCatDIR,TychoCatalogueDir='/home/jamiedegois/Desktop/p
     for ii in range(len(DaySeperatedList)):
         DaySeperatedList[ii].insert(0,TychoCatalogueDir)  # add the TychoRef catalogue to the front of list so stilts knows what to match image catalogues to
         print str(DaySeperatedList[ii][1][-47:-37])
-        stilts.stiltsTMatchN("120", DaySeperatedList[ii], 'ALPHAWIN_J2000', 'DELTAWIN_J2000',outPutCatDIR+str(DaySeperatedList[ii][1][-47:-37])+"._corected_FLAT_with8Feb_.fits",'',HDUNum='1',outFormat="fits")
+        stilts.stiltsTMatchN("120", DaySeperatedList[ii], 'ALPHAWIN_J2000', 'DELTAWIN_J2000',outPutCatDIR+str(DaySeperatedList[ii][1][-47:-37])+"FourIterofFlats_New",'',HDUNum='1',outFormat="fits")
 
 
 
@@ -300,9 +343,9 @@ def Join_AND_correct(outPutCatDIR,TychoCatalogueDir='/home/jamiedegois/Desktop/p
 
 ##################################  Commands Here  ###########################################
 #
-# pipeStart('/media/jamiedegois/JaimedeGois2TBPortable/Sem_2/TestPIP_300','/media/jamiedegois/data1/ASTROSMALL01/2016/02/2016-02-01_ASTROSMALL01_1454314379',k=1000,n=300,p=120)
+pipeStart('/media/jamiedegois/JaimedeGois2TBPortable/Sem_2/TestPIPE_TESTCALIBRATION','/media/jamiedegois/JaimedeGois2TBPortable/Sem_2/TEST_CALIBRATION_DATASET',k=1000,n=20,p=0)
 
-Join_AND_correct('/media/jamiedegois/JaimedeGois2TBPortable/Sem_2/TestPIPE/FinalCatalogues/')
+# Join_AND_correct('/media/jamiedegois/JaimedeGois2TBPortable/Sem_2/TestPIPE/FinalCatalogues/')
 
 
 # DIRLIST=smalls.fileInputList('/media/jamiedegois/JaimedeGois2TBPortable/Sem_2/TestPIPE/FinalCatalogues/dir list')

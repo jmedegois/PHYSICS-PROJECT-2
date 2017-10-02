@@ -10,6 +10,9 @@ import pandas
 from astropy.table import Table
 import smallPrograms as smalls
 from scipy.misc import imresize
+import time
+import copy
+
 
 def runningMeanFast(x, N):
     return np.convolve(x, np.ones((N,))/N)[(N-1):]
@@ -23,168 +26,144 @@ def cubicReg(m3,m2,m1,constant,x,m4=0,m5=0):
     return np.add(np.add(np.add(np.add(np.add(firstTerm, constant), secondTerm), thirdTerm),fourthTerm),fithTerm)
 
 Pixel_AREA=fits.open('/home/jamiedegois/Desktop/pipeStartQuick/PHOTO_CORECT_MAPS/SKY_PIXEL_AREA_MAP.fits')[0].data
-Map1=fits.open('/home/jamiedegois/Desktop/pipeStartQuick/PHOTO_CORECT_MAPS/Both_MAPS_IN_ONE.fits')[0].data
-dat = Table.read('/media/jamiedegois/JaimedeGois2TBPortable/Sem_2/TestPIPE/FinalCatalogues/2016-02-08FourIterofFlats_New.fits', format='fits')
+dat = Table.read('/media/jamiedegois/JaimedeGois2TBPortable/Sem_2/TestPIPE/FinalCatalogues/2016-02-08.fits', format='fits')
 df = dat.to_pandas()
 array=df.as_matrix()
 
+y=np.asfarray(array[:,5::7],dtype='float')
+yuncert=np.asfarray(array[:,6::7],dtype='float')
+dx=np.asfarray(array[:,7::7],dtype='float')
+dy=np.asfarray(array[:,8::7],dtype='float')
 
 mags=array[:,2]
 mags=np.asfarray(mags,dtype='float')
-y=array[:,5::7]
-y=np.asfarray(y,dtype='float')
-yuncert=array[:,6::7]
-yuncert=np.asfarray(yuncert,dtype='float')
-instrumentMags=np.log10(np.power(y,-2.5))
-MagZeroPoint=mags[:,None]-instrumentMags
-
-dx=np.subtract(array[:,7::7], 3000.0)
-dx=np.asfarray(dx,dtype='float')
-dy=np.subtract(array[:,8::7], 3000.0)
-dy=np.asfarray(dy,dtype='float')
-
-
-#######################subset parameters####################
+#######################subset parameters###########################################################
 fluxLwr=3000
 fluxUpr=100000
 LwrLimit=2
 UprLimit=2000
-ratiolimits=2.0
+dxLower=0
+dxUpper=6000
+dyLower=0
+dyUpper=6000
+
+######Make entries with certain conditions Nan so that we can ignore them
+selectionMatrix=np.logical_or.reduce((dx<dxLower,dx>dxUpper,dy<dyLower,dy>dyUpper,y<0))
+
+y[selectionMatrix]=np.nan
+yuncert[selectionMatrix]=np.nan
+dx[selectionMatrix]=np.nan
+dy[selectionMatrix]=np.nan
+
+######Remove all rows with no entries
+keepMatrix=~np.min(np.isnan(y),axis=1)
+
+y=y[keepMatrix,:]
+yuncert=yuncert[keepMatrix,:]
+dy=dy[keepMatrix,:]
+dx=dx[keepMatrix,:]
+
+mags=mags[keepMatrix]
+
+#####Remove Rows with MeanFlux to high or low and with numdetects too few or many
 num_detects=np.count_nonzero(~np.isnan(y),axis=1)
-ymean=(np.nanmean(y,axis=1))
-selection= np.logical_and(np.logical_and((num_detects>LwrLimit),(num_detects<UprLimit)),np.logical_and((ymean>fluxLwr),(ymean<fluxUpr)))
+ymean=np.nanmean(y,axis=1)
+selection= np.logical_and.reduce((num_detects>LwrLimit,num_detects<UprLimit,ymean>fluxLwr,ymean<fluxUpr))
+
 y=y[selection ,:]
 yuncert=yuncert[selection,:]
-print len(y)
 dx=dx[selection ,:]
 dy=dy[selection ,:]
-MagZeroPoint=MagZeroPoint[selection ,:]
-instrumentMags=instrumentMags[selection ,:]
+
+mags=mags[selection]
+ymean=ymean[selection]
+num_detects=num_detects[selection]
 
 
 
-# #####Plot xy of stars in catalogues###############################################################
-# plt.xlim([-3000,3000])
-# plt.ylim([-3000,3000])
-# plt.scatter(dx,dy,s=0.001)
-# plt.show()
-# ##################################################################################################
 
-# #####Plot flux ratio as fuction center distance ##################################################
-# plt.xlim([0,4000])
-# plt.grid(True, which='both')
-# plt.ylim([1/ratiolimits,1*ratiolimits])
-# plt.yscale('log')
-# dc=np.sqrt(np.add(np.square(dx),np.square(dy)))
-# ymean=(1.0/np.nanmean(y,axis=1))
-# yratio=y*ymean[:,np.newaxis]
-# plt.scatter(dc,yratio,s=0.0001)
-# plt.xlabel("Distance from center(pixels)")
-# plt.ylabel("Flux_Instantaneous/Flux_Mean (Log scale)")
-# plt.yticks(np.arange(0.5,2,0.1))
-# plt.show()
-#
-#
-# plt.figure(1)
-# dclist=dc.flatten()
-# yratiolist=yratio.flatten()
-# dclist=dclist[~np.isnan(dclist)]
-# yratiolist=yratiolist[~np.isnan(yratiolist)]
-# xlist=dclist
-# ylist=yratiolist
-# ###################################################################################################
-
-######Plot flux ratio as fuction sky pixel distance##################################################
-
+#####linearise data
 y1=y[~np.isnan(y)]
 yuncert1=yuncert[~np.isnan(yuncert)]
-nonNegFluxBool=y1>0
-y1=y1[nonNegFluxBool]
-yuncert1=yuncert1[nonNegFluxBool]
-yuncert1ratio=np.divide(yuncert1,y1)
-
-instrumentMags1=instrumentMags[~np.isnan(instrumentMags)]
-MagZeroPoint1=MagZeroPoint[~np.isnan(MagZeroPoint)]
 dx1=dx[~np.isnan(dx)]
-dx1=dx1[nonNegFluxBool]
 dy1=dy[~np.isnan(dy)]
-dy1=dy1[nonNegFluxBool]
+
+
+####integerise x and y values and make yratio1
 dx1=dx1.astype(int)
 dy1=dy1.astype(int)
-skyPixelArea=Pixel_AREA[dx1,dy1]
-correction_ratio=Map1[dx1,dy1]
-plt.xlim([min(skyPixelArea),max(skyPixelArea)])
-plt.grid(True, which='both')
-plt.ylim([1/ratiolimits,1*ratiolimits])
-plt.yscale('log')
-# newBoolSelector=np.nanmin(y,axis=1)>0
-# y=y[newBoolSelector]
-ymean=(1.0/np.nanmean(y,axis=1))
-yratio=y*ymean[:,np.newaxis]
+skyPixelArea1=Pixel_AREA[dx1,dy1]
+
+yratio=y/ymean[:,np.newaxis]
 yratio1=yratio.flatten()
 yratio1=yratio1[~np.isnan(yratio1)]
-yratio1=yratio1[yratio1>0]
-plt.scatter(skyPixelArea,yratio1,s=0.0001)
-plt.xlabel("Distance from center(pixels)")
-plt.ylabel("Flux_Instantaneous/Flux_Mean (Log scale)")
-plt.yticks(np.arange(0.5,2,0.1))
-plt.show()
-###################################################################################################
-dc1=np.sqrt(np.add(np.square(dx1),np.square(dy1)))
-plt.figure(1)
-xlist=skyPixelArea
-ylist=y1
-###################################################################################################
 
-###############new selection criteria#######
-criteria=np.logical_and(np.abs(dx1)<3000,np.abs(dy1)<3000)#  star is in image of 6000x6000
-dx1=dx1[criteria]
-dy1=dy1[criteria]
-xlist=xlist[criteria]
-ylist=ylist[criteria]
-yratio1=yratio1[criteria]
-MagZeroPoint1=MagZeroPoint1[criteria]
-instrumentMags1=instrumentMags1[criteria]
-###########################################
+###################################################################################################
 #############################Flat field map########################################################
-dx1=np.add(dx1,3000)
-dy1=np.add(dy1,3000)
 xbins=60
 ybins=60
 imageXSize=6000
 imageYSize=6000
 xBinlen=imageXSize/xbins
 yBinlen=imageXSize/ybins
-undersampled_map=np.zeros([xbins,ybins])
-count=0
-for ii in range(ybins):
-    for kk in range(xbins):
-        selectorX=np.logical_and(dx1>(xBinlen*ii),dx1<=(xBinlen*(ii+1)))#carfull here with the >= vs >
-        selectorY =np.logical_and(dy1 > (yBinlen * kk), dy1 <= (yBinlen * (kk + 1)))#carfull here with the >= vs >
-        selector= np.logical_and(selectorX,selectorY)
-        num_starsInBox=np.count_nonzero(selector)
 
-        # print xBinlen*ii
-        # print yBinlen * kk
-        # print num_starsInBox
-        count=count+num_starsInBox
-        if num_starsInBox>15:
-            undersampled_map[(xbins-1)-kk,ii]=np.median(yratio1[selector])
-        else:
-            undersampled_map[(xbins - 1) - kk, ii] =0
-        print undersampled_map[(xbins-1)-kk,ii]
-    print xBinlen * ii
-print len(xlist)
-print count
+
+
+numIter=30
+undersampled_mapMatrix=[np.zeros([xbins,ybins])]*numIter
+undersample=np.zeros([xbins,ybins])
+for jj in range(numIter):
+    for ii in range(ybins):
+        for kk in range(xbins):
+            selectorX=np.logical_and(dx1>(xBinlen*ii),dx1<=(xBinlen*(ii+1)))#carfull here with the >= vs >
+            selectorY =np.logical_and(dy1 > (yBinlen * kk), dy1 <= (yBinlen * (kk + 1)))#carfull here with the >= vs >
+            selector= np.logical_and(selectorX,selectorY)
+            num_starsInBox=np.count_nonzero(selector)
+            # print xBinlen*ii
+            # print yBinlen * kk
+            # print num_starsInBox
+            if num_starsInBox>40:
+                undersample[(xbins-1)-kk,ii]=np.median(yratio1[selector])
+                # y1[selector]=y1[selector]/np.median(yratio1[selector]) ####corect for subset for next iteration
+            else:
+                undersample[(xbins-1)-kk,ii]=1
+            # print undersampled_map[(xbins-1)-kk,ii]
+        # print xBinlen * ii
+    ######now remake yratio1 with corected y1
+    print (np.max(undersample)-np.min(undersample[undersample>0.1]))
+    undersampled_mapMatrix[jj]=copy.deepcopy(undersample)
+
+
+
+    TempMap=imresize(copy.deepcopy(undersample), np.multiply(undersample.shape, 6000 / xbins), interp='bicubic', mode='F')
+
+    y[~np.isnan(y)]=copy.deepcopy(y[~np.isnan(y)])/TempMap[-dy1,dx1]
+    ymean = np.nanmean(y, axis=1)
+    yratio = y / ymean[:, np.newaxis]
+    yratio1 = yratio.flatten()
+    yratio1 = yratio1[~np.isnan(yratio1)]
+
+finalCorrectionMap=np.ones([xbins,ybins])
+for ii in range(numIter):
+    finalCorrectionMap=np.multiply(finalCorrectionMap,undersampled_mapMatrix[ii])
+
+
 fig, ax = plt.subplots()
-cax = ax.imshow(undersampled_map,interpolation="gaussian",cmap=cm.afmhot)
+cax = ax.imshow(finalCorrectionMap,interpolation="gaussian",cmap=cm.afmhot)
 cbar = fig.colorbar(cax)
 plt.show()
+
+fig, ax = plt.subplots()
+cax = ax.imshow(undersampled_mapMatrix[2],interpolation="gaussian",cmap=cm.afmhot)
+cbar = fig.colorbar(cax)
+plt.show()
+
 # # If you want flat as field uncomment below 2 lines
 # hdu=fits.PrimaryHDU(undersampled_map)
 # hdu.writeto('/home/jamiedegois/Desktop/CorrectionMaplessMag7_2Feb_COMPLETETRANSIT',overwrite=True)
 ######Now to crop image to nice region#####################
-x_1,x_2,y_1,y_2,undersampled_map1=smalls.giveCropingCo_ords(undersampled_map,1)
+finalCorrectionMap[np.abs((1.0-finalCorrectionMap))<0.0000000001]=0
+x_1,x_2,y_1,y_2,undersampled_map1=smalls.giveCropingCo_ords(finalCorrectionMap,1)
 fig, ax = plt.subplots()
 cax = ax.imshow(undersampled_map1,interpolation="gaussian",cmap=cm.afmhot)
 cbar = fig.colorbar(cax)
@@ -195,7 +174,7 @@ hdu.header["Xbegin  "]=x_1*6000/xbins
 hdu.header["XEND    "]=x_2*6000/xbins
 hdu.header["Ybegin  "]=y_1*6000/ybins
 hdu.header["YEND    "]=y_2*6000/ybins
-# hdu.writeto('/media/jamiedegois/JaimedeGois2TBPortable/Sem_2/TestPIPE/FinalCatalogues/CorrectionMap8Feb_ALMostCompTransitMoreMag9_FithIteration_new.fits',overwrite=True)
+# hdu.writeto('/media/jamiedegois/JaimedeGois2TBPortable/Sem_2/TestPIPE/FinalCatalogues/CorrectionMap8Feb_30ItterAllStars',overwrite=True)
 
 # Table=np.column_stack((dx1,dy1,yratio1,yuncert1ratio))
 # np.save('/media/jamiedegois/JaimedeGois2TBPortable/Sem_2/TestPIPE/Uncalibrated_data_allStars',Table)
